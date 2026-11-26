@@ -1,0 +1,20 @@
+# Binaries and local test artifacts
+/otss
+/otss.exe
+*.exe
+*.log
+*.test
+*.out
+id.txt
+
+# Secrets: never commit a real master key
+.env
+.env.*
+!.env.example
+
+# Editors / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp

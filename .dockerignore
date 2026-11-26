@@ -1,0 +1,17 @@
+# Keep the build context small and free of anything that should not reach an image layer.
+.git
+.github
+.gitignore
+.gitattributes
+*.md
+!README.md
+*.exe
+*.log
+*.out
+.env
+.env.*
+!.env.example
+otss
+otss.exe
+tools/
+LICENSE

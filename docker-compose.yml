@@ -1,0 +1,60 @@
+services:
+  otss:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: otss:local
+    container_name: otss
+    ports:
+      - "8080:8080"
+
+    environment:
+      # Required. 32 random bytes, base64. Generate with:
+      #   openssl rand -base64 32
+      # There is no default: a missing key makes the process exit, because
+      # silently generating one would lose every secret on restart.
+      MASTER_KEY: "${MASTER_KEY:?set MASTER_KEY to 32 random bytes, base64}"
+
+      # Use the URL clients actually reach; otherwise share links echo the Host
+      # header, which an attacker can influence.
+      PUBLIC_BASE_URL: "${PUBLIC_BASE_URL:-http://localhost:8080}"
+
+      # Trust nothing by default, so X-Forwarded-For cannot be spoofed to mint
+      # fresh rate-limit buckets. Set to your proxy CIDRs if one is in front.
+      TRUSTED_PROXIES: "${TRUSTED_PROXIES:-}"
+
+      # Optional. When set, /metrics requires Authorization: Bearer <token>.
+      METRICS_TOKEN: "${METRICS_TOKEN:-}"
+
+      CREATE_RATE: "10"
+      CREATE_BURST: "20"
+      READ_RATE: "50"
+      READ_BURST: "100"
+
+    # Hardening. None of this is required by the spec; all of it costs an
+    # attacker time and closes generic container-escape paths.
+    read_only: true
+    user: "65532:65532"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=1m
+    pids_limit: 256
+    mem_limit: 512m
+    cpus: 2.0
+    restart: unless-stopped
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    healthcheck:
+      test: ["CMD", "/otss", "-healthcheck"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+      start_period: 3s

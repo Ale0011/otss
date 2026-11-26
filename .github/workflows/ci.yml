@@ -1,0 +1,66 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache: true
+
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "these files are not gofmt'd:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: vet
+        run: go vet ./...
+
+      - name: test
+        run: go test ./... -count=1 -race -shuffle=on
+
+      - name: build
+        run: CGO_ENABLED=0 go build -trimpath -o /dev/null ./cmd/otss
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: build image
+        run: docker build -t otss:ci .
+
+      - name: run and smoke test
+        run: |
+          docker run -d --name otss -p 8080:8080 \
+            -e MASTER_KEY="$(openssl rand -base64 32)" \
+            -e PUBLIC_BASE_URL="http://localhost:8080" \
+            --read-only --cap-drop ALL \
+            otss:ci
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:8080/healthz; then break; fi
+            sleep 1
+          done
+          curl -fsS http://localhost:8080/healthz | grep -q '"status":"ok"'
+
+      - name: attack probes
+        run: ./tools/attack.sh http://localhost:8080
+
+      - name: logs
+        if: always()
+        run: docker logs otss || true
